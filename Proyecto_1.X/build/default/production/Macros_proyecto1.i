@@ -18,15 +18,6 @@ limpiar_timer1 macro;Tarda un segundo la interrupcion
     bcf TMR1IF ;Limpiar bandera de overflow de timer1
     endm
 
-;limpiar_timer2 macro
-; banksel TRISA ;PR2 = Ttmr2IF/(preescalar*posescalar**(1/(FOSC/4))
-; movlw 245 ;valor para que TMR2 sume cada 250ms
-; movwf PR2 ;Se envia el valor al registro PR2
-;
-; banksel PORTA
-; bcf TMR2IF ;Limpiar bandera de overflow de timer2
-; endm
-
 tiempos_semaforos macro
     movlw 10
     movwf T_semaforo1

@@ -2479,15 +2479,6 @@ limpiar_timer1 macro;Tarda un segundo la interrupcion
     bcf ((PIR1) and 07Fh), 0 ;Limpiar bandera de overflow de timer1
     endm
 
-;limpiar_timer2 macro
-; banksel TRISA ;PR2 = Ttmr2IF/(preescalar*posescalar**(1/(FOSC/4))
-; movlw 245 ;valor para que TMR2 sume cada 250ms
-; movwf PR2 ;Se envia el valor al registro PR2
-;
-; banksel PORTA
-; bcf ((PIR1) and 07Fh), 1 ;Limpiar bandera de overflow de timer2
-; endm
-
 tiempos_semaforos macro
     movlw 10
     movwf T_semaforo1
@@ -2516,37 +2507,46 @@ tiempos_semaforos macro
 ;--------------------------------VARIABLES--------------------------------------
   PSECT udata_shr ;comoon memory
     W_TEMP: DS 1 ; 1 byte
-    STATUS_TEMP: DS 1
+    STATUS_TEMP:DS 1
     cont_big: DS 1
     cont_small: DS 1
   PSECT udata_bank0 ;memory bank 0
-    T_semaforo1: DS 1
-    T_semaforo2: DS 1
-    T_semaforo3: DS 1
-    flags: DS 1
-    nibbles: DS 2
-    display1: DS 2
-    display2: DS 2
-    display3: DS 2
-    display4: DS 2
-    decena: DS 1
-    unidad: DS 1
-    decena2: DS 1
-    unidad2: DS 1
-    decena3: DS 1
-    unidad3: DS 1
-    resta: DS 1
-    resta2: DS 1
-    resta3: DS 1
-    titileo: DS 1
-    valor_sema: DS 1
-    bandera_sem: DS 1
-    reset_flag: DS 1
-    verde: DS 1
-    verde_tilt: DS 1
-    amarillo: DS 1
-    var: DS 1
-    resta_sem: DS 1
+
+T_semaforo1:DS 1
+T_semaforo2:DS 1
+T_semaforo3:DS 1
+T_modo: DS 1
+flags: DS 1
+nibbles: DS 2
+display1: DS 2
+display2: DS 2
+display3: DS 2
+display4: DS 2
+decena: DS 1
+unidad: DS 1
+decena2: DS 1
+unidad2: DS 1
+decena3: DS 1
+unidad3: DS 1
+unidad4: DS 1
+decena4: DS 1
+resta: DS 1
+resta2: DS 1
+resta3: DS 1
+resta4: DS 1
+titileo: DS 1
+valor_sema: DS 1
+bandera_sem:DS 1
+reset_flag: DS 1
+verde: DS 1
+verde_tilt: DS 1
+amarillo: DS 1
+var: DS 1
+mood_flags: DS 2
+N_semaforo1:DS 1 ;variable para nuevo tiempo de semaforo 1
+N_semaforo2:DS 1 ;variable para nuevo tiempo de semaforo 2
+N_semaforo3:DS 1 ;variable para nuevo tiempo de semaforo 3
+
 ;--------------------------vector reset-----------------------------------------
    PSECT resVect, class=code, abs, delta=2
    ORG 00h ;posicion 0000h para el reset
@@ -2731,6 +2731,8 @@ main:
    banksel PORTA
 ;------------------------------loop principal-----------------------------------
 loop:
+    btfsc PORTB,1
+    call cambiarmodo
 
     call division
 
@@ -2738,7 +2740,245 @@ loop:
 
     call preparar_display
 
+    btfss mood_flags,0
+    goto moodA
+    goto moodB
+
+cambiarmodo:
+    btfsc PORTB,1
+    goto $-1
+    incf mood_flags
+    return
+
+
+
+incr:
+    btfsc PORTB,2
+    goto $-1
+    incf var
+    call limite_superior
+
+    movf var,W
+    return
+
+decr:
+    btfsc PORTB,3
+    goto $-1
+    decf var
+    call limite_inferior
+
+    movf var,W
+    return
+
+
+
+
+limite_inferior:
+
+    movlw 9
+    subwf var,W
+
+    btfsc STATUS,2
+    goto ufl
+
+    return
+
+ufl:
+    movlw 20
+    movwf var
+    return
+
+limite_superior:
+    movlw 21
+    subwf var,W
+
+    btfsc STATUS,2
+    goto ofl
+
+    return
+
+ofl:
+    movlw 10
+    movwf var
+    return
+
+
+
+moodA:
+    btfsc mood_flags,1
+    goto moodD
+    goto moodC
     goto loop
+
+moodB:
+    btfsc mood_flags,1
+    goto moodE
+    goto moodF
+    goto loop
+
+moodC:
+    btfsc mood_flags,2
+    goto mood4
+    goto mood0
+    goto loop
+
+moodD:
+    btfsc mood_flags,2
+    goto moodm
+    goto mood2
+    goto loop
+
+moodE:
+    btfsc mood_flags,2
+    goto moodm
+    goto mood3
+    goto loop
+
+moodF:
+    btfsc mood_flags,2
+    goto moodm
+    goto mood1
+    goto loop
+
+
+
+mood0:
+    bcf PORTE,0
+    bcf PORTE,1
+    bcf PORTE,2
+
+    clrf display4
+    clrf display4+1
+    goto loop
+
+mood1:
+    movf N_semaforo1,W
+    movwf var
+    bsf PORTE,0
+    bcf PORTE,1
+    bcf PORTE,2
+
+    btfsc PORTB,2
+    call incr
+
+    btfsc PORTB,3
+    call decr
+
+    movf var,W
+    movwf N_semaforo1
+    movwf resta4
+
+
+    call division
+
+    movwf unidad4,W
+    call tabla
+    movwf display4
+
+    movwf decena4,W
+    call tabla
+    movwf display4+1
+
+    goto loop
+mood2:
+    movf N_semaforo2,W
+    movwf var
+    bcf PORTE,0
+    bsf PORTE,1
+    bcf PORTE,2
+
+    btfsc PORTB,2
+    call incr
+
+    btfsc PORTB,3
+    call decr
+
+    movf var,W
+    movwf N_semaforo2
+    movwf resta4
+
+
+    call division
+
+    movwf unidad4,W
+    call tabla
+    movwf display4
+
+    movwf decena4,W
+    call tabla
+    movwf display4+1
+
+    goto loop
+
+mood3:
+    movf N_semaforo3,W
+    movwf var
+    bcf PORTE,0
+    bcf PORTE,1
+    bsf PORTE,2
+
+    btfsc PORTB,2
+    call incr
+
+    btfsc PORTB,3
+    call decr
+
+    movf var,W
+    movwf N_semaforo3
+    movwf resta4
+
+    call division
+
+    movwf unidad4,W
+    call tabla
+    movwf display4
+
+    movwf decena4,W
+    call tabla
+    movwf display4+1
+
+    goto loop
+
+mood4:
+    bsf PORTE,0
+    bsf PORTE,1
+    bsf PORTE,2
+
+    btfsc PORTB,2
+    call aceptar
+
+    btfsc PORTB,3
+    call rechazar
+
+    goto loop
+
+
+moodm:
+    clrf mood_flags
+    goto loop
+
+aceptar:
+    btfsc PORTB,2
+    goto $-1
+    clrf mood_flags
+
+    movf N_semaforo1,W
+    movwf T_semaforo1
+
+    movf N_semaforo2,W
+    movwf T_semaforo2
+
+    movf N_semaforo3,W
+    movwf T_semaforo3
+    goto loop
+
+rechazar:
+    btfsc PORTB,3
+    goto $-1
+    clrf mood_flags
+    goto loop
+
+
 ;-------------------------------subrutinas--------------------------------------
 
 preparar_display: ;Resultados de operaciones se mueven a variable
@@ -2769,16 +3009,6 @@ preparar_display: ;Resultados de operaciones se mueven a variable
     call tabla
     movwf display3+1
 
-   ;Configuracion
-    ;movf unidad, W
-    movlw 0
-    call tabla
-    movwf display4
-
-    ;movf decena, W
-    movlw 0
-    call tabla
-    movwf display4+1
     return
 
 
@@ -2837,6 +3067,25 @@ division:
     addwf resta3 ;entonces se obtienen las unidades restantes
     movf resta3, W ;mover el resultado de la operacion a "resta3"
     movwf unidad3
+
+;modos
+    clrf decena4 ;Limpiar variables
+    clrf unidad4
+    clrf resta4
+    bcf STATUS, 0
+    movf T_modo, 0 ;Se mueve T_semaforo3 a resta3
+    movwf resta4
+    movlw 10 ;Mover valor 10 a W
+    subwf resta4, F ;Restamos W y resta3; el resultado va a resta3
+    btfsc STATUS, 0 ;Si hay acarreo, incrementa decena3
+    incf decena4 ;Incrementar decenas3
+    btfsc STATUS, 0 ;Si hay acarreo, repito el proceso de division
+    goto $-5 ;hasta que ya no hayan decenas
+    movlw 10 ;se hace para que sea 10+ resta3(que tiene valor negativo)
+    addwf resta4 ;entonces se obtienen las unidades restantes
+    movf resta4, W ;mover el resultado de la operacion a "resta3"
+    movwf unidad4
+
     return
 semaforos:
     btfsc bandera_sem, 0
@@ -2862,9 +3111,7 @@ semaforos:
 
     btfsc bandera_sem, 7
     goto sema3_amarillo
-
-    ;btfsc reset_flag, 0
-    ;goto reset_semaforos
+;--------------------------subrutinas para semaforo 1---------------------------
 
 ;------------subrutina para encneder la luz verde de semaforo 1-----------------
 sema1_verde:
@@ -2913,6 +3160,8 @@ sema1_amarillo:
     call tope ;el semaforo 1 ahora tiene un nuevo tiempo de espera
     return
 
+;--------------------------subrutinas para semaforo 2---------------------------
+
 ;------------------se enciende la luz verde del semaforo 2----------------------
 sema1_rojo:
     bsf PORTA, 5 ;se enciende el led verde del semaforo 2
@@ -2951,7 +3200,9 @@ sema2_amarillo:
     call tope ;el semaforo 2 ahora tiene un nuevo tiempo de espera
     return
 
+;--------------------------subrutinas para semaforo 3---------------------------
 ;------------------se enciende la luz verde del semaforo 3----------------------
+
 sema2_rojo:
     bsf PORTB, 0 ;se enciende el led verde del semaforo 3
     bcf PORTA, 6 ;apagar luz roja de semaforo 3
@@ -2987,6 +3238,7 @@ sema3_amarillo:
     bcf PORTA, 7 ;apago el led amarillo
     call tope ;el semaforo 3 ahora tiene un nuevo tiempo de espera
     return
+
 
 
 tope:
@@ -3029,7 +3281,6 @@ nuevo_tiempo3: ;sumar los tiempos de semaforo 1 y 2
     return
 
 
-
 ;un delay de 'como de 200ms' 500ms
 delay_1:
     movlw 249 ;valor inicial del contador
@@ -3037,6 +3288,12 @@ delay_1:
     decfsz cont_small, F ;decrementar contador
     goto $-1 ;ejecutar linea anterior
     return
+
+
+;multi_modos:
+
+    ;return
+
 
 ;-------------------------seleccion de puertos----------------------------------
 
@@ -3061,8 +3318,6 @@ port_io:
     clrf PORTD
     clrf PORTE
     return
-
-
 ;------------------------------configuraciones----------------------------------
 
 conf_reloj:
@@ -3086,6 +3341,8 @@ conf_timer0:
     limpiar_timer0
     return
 
+
+
 conf_timer1:
     banksel PORTA ;timer oon interrupcion cada segundo
     bsf ((T1CON) and 07Fh), 0 ;se ahbilita el timer1
@@ -3095,7 +3352,6 @@ conf_timer1:
     banksel PORTA
     limpiar_timer1
     return
-
 
 
 conf_int_Enbale:
@@ -3108,11 +3364,8 @@ conf_int_Enbale:
 
     banksel TRISA
     bsf ((PIE1) and 07Fh), 0 ;interrupciones overflow de TMR1 habilitada
-    bsf ((PIE1) and 07Fh), 1 ;habilitar interrupcion de overflow de timer2
     banksel PORTA
     bcf ((PIR1) and 07Fh), 0 ;Se baja la bandera de overflow de timer1
-    bcf ((PIR1) and 07Fh), 1 ;Limpiar bandera de overflow de timer2
     return
 
-
- END
+END

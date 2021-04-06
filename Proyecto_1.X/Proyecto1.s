@@ -32,37 +32,46 @@ PROCESSOR 16F887
 ;--------------------------------VARIABLES--------------------------------------  
   PSECT udata_shr ;comoon memory
     W_TEMP: DS 1  ; 1 byte
-    STATUS_TEMP: DS 1
+    STATUS_TEMP:DS 1
     cont_big:	DS 1
     cont_small: DS 1
   PSECT udata_bank0 ;memory bank 0
-    T_semaforo1:    DS 1 
-    T_semaforo2:    DS 1 
-    T_semaforo3:    DS 1 
-    flags:	    DS 1
-    nibbles:	    DS 2
-    display1:	    DS 2
-    display2:	    DS 2
-    display3:	    DS 2
-    display4:	    DS 2
-    decena:	    DS 1
-    unidad:	    DS 1
-    decena2:	    DS 1
-    unidad2:	    DS 1
-    decena3:	    DS 1
-    unidad3:	    DS 1    
-    resta:	    DS 1
-    resta2:	    DS 1
-    resta3:	    DS 1
-    titileo:	    DS 1
-    valor_sema:	    DS 1
-    bandera_sem:    DS 1
-    reset_flag:	    DS 1
-    verde:	    DS 1
-    verde_tilt:	    DS 1
-    amarillo:	    DS 1
-    var:	    DS 1
-    resta_sem:	    DS 1
+//<editor-fold defaultstate="collapsed" desc="Variables">
+T_semaforo1:DS 1 
+T_semaforo2:DS 1 
+T_semaforo3:DS 1 
+T_modo:	    DS 1    
+flags:	    DS 1
+nibbles:    DS 2
+display1:   DS 2
+display2:   DS 2
+display3:   DS 2
+display4:   DS 2
+decena:	    DS 1
+unidad:	    DS 1
+decena2:    DS 1
+unidad2:    DS 1
+decena3:    DS 1    
+unidad3:    DS 1
+unidad4:    DS 1 
+decena4:    DS 1
+resta:	    DS 1
+resta2:	    DS 1
+resta3:	    DS 1
+resta4:	    DS 1
+titileo:    DS 1
+valor_sema: DS 1
+bandera_sem:DS 1
+reset_flag: DS 1
+verde:	    DS 1
+verde_tilt: DS 1
+amarillo:   DS 1
+var:	    DS 1
+mood_flags: DS 2
+N_semaforo1:DS 1 ;variable para nuevo tiempo de semaforo 1
+N_semaforo2:DS 1 ;variable para nuevo tiempo de semaforo 2
+N_semaforo3:DS 1 ;variable para nuevo tiempo de semaforo 3
+    //</editor-fold>
 ;--------------------------vector reset-----------------------------------------   
    PSECT resVect, class=code, abs, delta=2
    ORG 00h		;posicion 0000h para el reset
@@ -247,6 +256,8 @@ main:
    banksel PORTA
 ;------------------------------loop principal-----------------------------------    
 loop:  
+    btfsc   PORTB,1
+    call    cambiarmodo
     
     call    division
     
@@ -254,7 +265,245 @@ loop:
     
     call    preparar_display
     
+    btfss   mood_flags,0
+    goto    moodA
+    goto    moodB
+//<editor-fold defaultstate="collapsed" desc="Cambio de modo">
+cambiarmodo:
+    btfsc	PORTB,1
+    goto	$-1
+    incf	mood_flags
+    return
+    //</editor-fold>    
+
+//<editor-fold defaultstate="collapsed" desc="incremento y decremento">
+incr:
+    btfsc   PORTB,2
+    goto    $-1
+    incf    var
+    call    limite_superior
+    
+    movf    var,W
+    return
+    
+decr:
+    btfsc   PORTB,3
+    goto    $-1
+    decf    var
+    call    limite_inferior
+    
+    movf    var,W
+    return
+    
+    //</editor-fold>  
+
+//<editor-fold defaultstate="collapsed" desc="limites">
+limite_inferior:
+ 
+    movlw   9
+    subwf   var,W
+    
+    btfsc   STATUS,2
+    goto    ufl
+    
+    return
+    
+ufl:
+    movlw   20
+    movwf   var
+    return
+    
+limite_superior:
+    movlw    21
+    subwf    var,W
+   
+    btfsc    STATUS,2
+    goto     ofl
+   
+    return
+   
+ofl:
+    movlw   10
+    movwf   var
+    return
+    //</editor-fold>   
+ 
+//<editor-fold defaultstate="collapsed" desc="revisar bandera de modos">
+moodA:
+    btfsc   mood_flags,1
+    goto    moodD
+    goto    moodC
     goto    loop
+    
+moodB:
+    btfsc   mood_flags,1
+    goto    moodE
+    goto    moodF
+    goto    loop
+    
+moodC:
+    btfsc   mood_flags,2
+    goto    mood4
+    goto    mood0
+    goto    loop
+    
+moodD:
+    btfsc   mood_flags,2
+    goto    moodm
+    goto    mood2
+    goto    loop
+  
+moodE:
+    btfsc   mood_flags,2
+    goto    moodm
+    goto    mood3
+    goto    loop
+    
+moodF:
+    btfsc   mood_flags,2
+    goto    moodm
+    goto    mood1
+    goto    loop
+    //</editor-fold>
+    
+//<editor-fold defaultstate="collapsed" desc="MODOS">
+mood0:
+    bcf		    PORTE,0
+    bcf		    PORTE,1
+    bcf		    PORTE,2
+    
+    clrf	    display4
+    clrf	    display4+1
+    goto	    loop
+    
+mood1:
+    movf	    N_semaforo1,W
+    movwf	    var
+    bsf		    PORTE,0
+    bcf		    PORTE,1
+    bcf		    PORTE,2	
+    
+    btfsc	    PORTB,2
+    call	    incr
+    
+    btfsc	    PORTB,3
+    call	    decr
+    
+    movf	    var,W
+    movwf	    N_semaforo1
+    movwf	    resta4
+    
+    
+    call	    division
+    
+    movwf   unidad4,W
+    call    tabla
+    movwf   display4
+    
+    movwf   decena4,W
+    call    tabla
+    movwf   display4+1
+    
+    goto	    loop
+mood2:
+    movf    N_semaforo2,W
+    movwf   var
+    bcf	    PORTE,0
+    bsf	    PORTE,1
+    bcf	    PORTE,2
+    
+    btfsc   PORTB,2
+    call    incr
+    
+    btfsc   PORTB,3
+    call    decr
+    
+    movf    var,W
+    movwf   N_semaforo2
+    movwf   resta4
+    
+    
+    call    division
+    
+    movwf   unidad4,W
+    call    tabla
+    movwf   display4
+    
+    movwf   decena4,W
+    call    tabla
+    movwf   display4+1
+    
+    goto    loop
+    
+mood3:
+    movf    N_semaforo3,W
+    movwf   var
+    bcf	    PORTE,0
+    bcf	    PORTE,1
+    bsf	    PORTE,2
+    
+    btfsc   PORTB,2
+    call    incr
+    
+    btfsc   PORTB,3
+    call    decr
+    
+    movf    var,W
+    movwf   N_semaforo3
+    movwf   resta4  
+    
+    call division
+    
+    movwf   unidad4,W
+    call    tabla
+    movwf   display4
+    
+    movwf   decena4,W
+    call    tabla
+    movwf   display4+1
+    
+    goto    loop
+    
+mood4:
+    bsf	    PORTE,0
+    bsf	    PORTE,1
+    bsf	    PORTE,2
+    
+    btfsc   PORTB,2
+    call    aceptar
+    
+    btfsc   PORTB,3
+    call    rechazar
+    
+    goto loop
+    
+    
+moodm:
+    clrf    mood_flags
+    goto    loop
+    
+aceptar:
+    btfsc   PORTB,2
+    goto    $-1
+    clrf    mood_flags
+    
+    movf    N_semaforo1,W
+    movwf   T_semaforo1
+    
+    movf    N_semaforo2,W
+    movwf   T_semaforo2
+    
+    movf    N_semaforo3,W
+    movwf   T_semaforo3
+    goto    loop
+    
+rechazar:
+    btfsc   PORTB,3
+    goto    $-1
+    clrf    mood_flags
+    goto    loop
+   //</editor-fold>
+
 ;-------------------------------subrutinas--------------------------------------
 //<editor-fold defaultstate="collapsed" desc="datos de operaciones para displays">
 preparar_display:	    ;Resultados de operaciones se mueven a variable
@@ -285,16 +534,6 @@ preparar_display:	    ;Resultados de operaciones se mueven a variable
     call    tabla
     movwf   display3+1
     
-   ;Configuracion 
-    ;movf    unidad, W 
-    movlw   0
-    call    tabla
-    movwf   display4
-   
-    ;movf    decena, W 
-    movlw   0
-    call    tabla
-    movwf   display4+1
     return//</editor-fold>
     
 //<editor-fold defaultstate="collapsed" desc="conversion a decimales">
@@ -353,6 +592,25 @@ division:
     addwf resta3    ;entonces se obtienen las unidades restantes
     movf resta3, W  ;mover el resultado de la operacion a "resta3"
     movwf unidad3
+    
+;modos     
+    clrf decena4    ;Limpiar variables 
+    clrf unidad4
+    clrf resta4
+    bcf	STATUS, 0
+    movf T_modo, 0    ;Se mueve T_semaforo3  a resta3 
+    movwf resta4
+    movlw 10        ;Mover valor 10 a W
+    subwf resta4, F  ;Restamos W y resta3; el resultado va a resta3
+    btfsc STATUS, 0 ;Si hay acarreo, incrementa decena3
+    incf decena4	    ;Incrementar decenas3
+    btfsc STATUS, 0    ;Si hay acarreo, repito el proceso de division
+    goto $-5        ;hasta que ya no hayan decenas
+    movlw 10        ;se hace para que sea 10+ resta3(que tiene valor negativo)
+    addwf resta4    ;entonces se obtienen las unidades restantes
+    movf resta4, W  ;mover el resultado de la operacion a "resta3"
+    movwf unidad4
+    
     return //</editor-fold>
 semaforos:    
     btfsc   bandera_sem, 0
@@ -378,7 +636,8 @@ semaforos:
 
     btfsc   bandera_sem, 7
     goto    sema3_amarillo
-    
+;--------------------------subrutinas para semaforo 1---------------------------
+//<editor-fold defaultstate="collapsed" desc="semaforo 1 configuracion">    
 ;------------subrutina para encneder la luz verde de semaforo 1-----------------    
 sema1_verde: 
     ;configuracion incial para todos los semaforos
@@ -424,8 +683,10 @@ sema1_amarillo:
     bsf	    bandera_sem, 2 ;procedemos a colocar en rojo el semaforo 1.
     bcf	    PORTA, 1 ;apago el led amarillo
     call    tope ;el semaforo 1 ahora tiene un nuevo tiempo de espera
-    return
-    
+    return//</editor-fold>
+
+;--------------------------subrutinas para semaforo 2---------------------------    
+//<editor-fold defaultstate="collapsed" desc="semaforo 2 configuracion">
 ;------------------se enciende la luz verde del semaforo 2----------------------   
 sema1_rojo:
     bsf	    PORTA, 5	;se enciende el led verde del semaforo 2
@@ -462,9 +723,11 @@ sema2_amarillo:
     bsf	    bandera_sem, 5 ;procedemos a colocar en rojo el semaforo 2.
     bcf	    PORTA, 4 ;apago el led amarillo
     call    tope ;el semaforo 2 ahora tiene un nuevo tiempo de espera
-    return
+    return//</editor-fold>
     
+;--------------------------subrutinas para semaforo 3---------------------------    
 ;------------------se enciende la luz verde del semaforo 3----------------------   
+//<editor-fold defaultstate="collapsed" desc="Semaforo 3 configuracion">
 sema2_rojo:
     bsf	    PORTB, 0	;se enciende el led verde del semaforo 3
     bcf	    PORTA, 6	;apagar luz roja de semaforo 3
@@ -499,7 +762,8 @@ sema3_amarillo:
     bcf	    bandera_sem, 7 ;asi ya no se reite el proceso
     bcf	    PORTA, 7 ;apago el led amarillo
     call    tope ;el semaforo 3 ahora tiene un nuevo tiempo de espera
-    return
+    return//</editor-fold>
+
     
 //<editor-fold defaultstate="collapsed" desc="tope de semaforos">
 tope:
@@ -540,7 +804,6 @@ nuevo_tiempo3: ;sumar los tiempos de semaforo 1 y 2
     movf    T_semaforo1, W
     addwf   T_semaforo2, W
     return  //</editor-fold>
-
     
 //<editor-fold defaultstate="collapsed" desc="delay de titileo">
 ;un delay de 'como de 200ms' 500ms    
@@ -550,7 +813,13 @@ delay_1:
     decfsz  cont_small, F   ;decrementar contador
     goto    $-1		    ;ejecutar linea anterior
     return//</editor-fold>
-
+ 
+//<editor-fold defaultstate="collapsed" desc="Displays de modos">
+;multi_modos:
+  
+    ;return
+   //</editor-fold>
+   
 ;-------------------------seleccion de puertos----------------------------------
 //<editor-fold defaultstate="collapsed" desc="Configuracion de puertos">
 port_io:
@@ -574,8 +843,6 @@ port_io:
     clrf	PORTD
     clrf	PORTE
     return//</editor-fold>
-
-
 ;------------------------------configuraciones----------------------------------    
 //<editor-fold defaultstate="collapsed" desc="configuracion reloj">
 conf_reloj:
@@ -585,8 +852,8 @@ conf_reloj:
     bsf	    IRCF2
     bsf	    SCS		;Utilizamos reloj interno 
     return//</editor-fold>
-
-    
+   
+//<editor-fold defaultstate="collapsed" desc="configuracion timer 0">
 conf_timer0:
     banksel TRISA
     bcf	    T0CS	;ciclo de intruccion FOSC/4
@@ -597,7 +864,9 @@ conf_timer0:
     
     banksel PORTA
     limpiar_timer0
-    return
+    return//</editor-fold>
+
+//<editor-fold defaultstate="collapsed" desc="configuracion timer 1">
 
 conf_timer1:
     banksel PORTA	;timer oon interrupcion cada segundo
@@ -607,9 +876,8 @@ conf_timer1:
     
     banksel PORTA
     limpiar_timer1
-    return
+    return//</editor-fold>
 
-    
 //<editor-fold defaultstate="collapsed" desc="configuracion de interrupciones">
 conf_int_Enbale:
     banksel PORTA
@@ -621,11 +889,8 @@ conf_int_Enbale:
     
     banksel TRISA
     bsf	    TMR1IE	;interrupciones overflow de TMR1 habilitada
-    bsf	    TMR2IE	;habilitar interrupcion de overflow de timer2
     banksel PORTA
     bcf	    TMR1IF	;Se baja la bandera de overflow de timer1
-    bcf	    TMR2IF	;Limpiar bandera de overflow de timer2
     return//</editor-fold>
-
-  
- END
+ 
+END
