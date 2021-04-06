@@ -21,6 +21,12 @@ limpiar_timer1 macro;Tarda un segundo la interrupcion
 tiempos_semaforos macro
     movlw 10
     movwf T_semaforo1
+    ;para que en los modos empiece en 10
+    movwf N_semaforo1
+    movwf N_semaforo2
+    movwf N_semaforo3
+    movwf T_modo
+
     movlw 20
     movwf T_semaforo2
     movlw 30

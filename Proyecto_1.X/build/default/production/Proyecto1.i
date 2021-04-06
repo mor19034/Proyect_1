@@ -2482,6 +2482,12 @@ limpiar_timer1 macro;Tarda un segundo la interrupcion
 tiempos_semaforos macro
     movlw 10
     movwf T_semaforo1
+    ;para que en los modos empiece en 10
+    movwf N_semaforo1
+    movwf N_semaforo2
+    movwf N_semaforo3
+    movwf T_modo
+
     movlw 20
     movwf T_semaforo2
     movlw 30
@@ -2732,7 +2738,7 @@ main:
 ;------------------------------loop principal-----------------------------------
 loop:
     btfsc PORTB,1
-    call cambiarmodo
+    call cambiar_modo
 
     call division
 
@@ -2741,10 +2747,10 @@ loop:
     call preparar_display
 
     btfss mood_flags,0
-    goto moodA
-    goto moodB
+    goto estado0
+    goto estado1
 
-cambiarmodo:
+cambiar_modo:
     btfsc PORTB,1
     goto $-1
     incf mood_flags
@@ -2756,93 +2762,68 @@ incr:
     btfsc PORTB,2
     goto $-1
     incf var
-    call limite_superior
-
-    movf var,W
+    movlw 21
+    subwf var, W ;verificar que var no sea mayor a 21
+    btfss STATUS, 2
+    goto $+3
+    movlw 10 ;si se var s epasa de 21, automaticamente pasa a 10
+    movwf var
     return
 
 decr:
     btfsc PORTB,3
     goto $-1
     decf var
-    call limite_inferior
-
-    movf var,W
-    return
-
-
-
-
-limite_inferior:
-
     movlw 9
-    subwf var,W
-
-    btfsc STATUS,2
-    goto ufl
-
-    return
-
-ufl:
-    movlw 20
-    movwf var
-    return
-
-limite_superior:
-    movlw 21
-    subwf var,W
-
-    btfsc STATUS,2
-    goto ofl
-
-    return
-
-ofl:
-    movlw 10
+    subwf var, W ;verificar que var no sea menor que 10
+    btfss STATUS, 2
+    goto $+3
+    movlw 20 ;si es menor que 10, automaticamente se vuelve 20
     movwf var
     return
 
 
 
-moodA:
+
+estado0:
     btfsc mood_flags,1
-    goto moodD
-    goto moodC
+    goto estado3
+    goto estado2
     goto loop
 
-moodB:
+estado1:
     btfsc mood_flags,1
-    goto moodE
-    goto moodF
+    goto estado4
+    goto estado5
     goto loop
 
-moodC:
+estado2:
     btfsc mood_flags,2
-    goto mood4
-    goto mood0
+    goto modo4
+    goto modo0
     goto loop
 
-moodD:
+estado3:
     btfsc mood_flags,2
-    goto moodm
-    goto mood2
+    goto mood_main
+    goto modo2
     goto loop
 
-moodE:
+estado4:
     btfsc mood_flags,2
-    goto moodm
-    goto mood3
+    goto mood_main
+    goto modo3
     goto loop
 
-moodF:
+estado5:
     btfsc mood_flags,2
-    goto moodm
-    goto mood1
+    goto mood_main
+    goto modo1
     goto loop
 
 
 
-mood0:
+modo0:
     bcf PORTE,0
     bcf PORTE,1
     bcf PORTE,2
@@ -2851,7 +2832,7 @@ mood0:
     clrf display4+1
     goto loop
 
-mood1:
+modo1:
     movf N_semaforo1,W
     movwf var
     bsf PORTE,0
@@ -2880,7 +2861,7 @@ mood1:
     movwf display4+1
 
     goto loop
-mood2:
+modo2:
     movf N_semaforo2,W
     movwf var
     bcf PORTE,0
@@ -2897,7 +2878,7 @@ mood2:
     movwf N_semaforo2
     movwf resta4
 
-
+    ;esta parte es el multiplexeado
     call division
 
     movwf unidad4,W
@@ -2910,7 +2891,7 @@ mood2:
 
     goto loop
 
-mood3:
+modo3:
     movf N_semaforo3,W
     movwf var
     bcf PORTE,0
@@ -2939,7 +2920,7 @@ mood3:
 
     goto loop
 
-mood4:
+modo4:
     bsf PORTE,0
     bsf PORTE,1
     bsf PORTE,2
@@ -2953,7 +2934,7 @@ mood4:
     goto loop
 
 
-moodm:
+mood_main:
     clrf mood_flags
     goto loop
 
@@ -2961,7 +2942,6 @@ aceptar:
     btfsc PORTB,2
     goto $-1
     clrf mood_flags
-
     movf N_semaforo1,W
     movwf T_semaforo1
 
@@ -2970,6 +2950,8 @@ aceptar:
 
     movf N_semaforo3,W
     movwf T_semaforo3
+
+    clrf bandera_sem ;asi nos vamos al modo incial de colores
     goto loop
 
 rechazar:
@@ -3017,7 +2999,6 @@ division:
 ;Semaforo 1
     clrf decena ;Limpiar variables
     clrf unidad
-    clrf resta
     bcf STATUS, 0 ;bajar la bandera de acarreo
     movf T_semaforo1, 0 ;Se mueve T_semaforo1 a resta
     movwf resta
@@ -3035,7 +3016,6 @@ division:
 ;Semaforo 2
     clrf decena2 ;Limpiar variables
     clrf unidad2
-    clrf resta2
     bcf STATUS, 0
     movf T_semaforo2, 0 ;Se mueve T_semaforo1 a resta
     movwf resta2
@@ -3053,7 +3033,6 @@ division:
 ;Semaforo 3
     clrf decena3 ;Limpiar variables
     clrf unidad3
-    clrf resta3
     bcf STATUS, 0
     movf T_semaforo3, 0 ;Se mueve T_semaforo3 a resta3
     movwf resta3
@@ -3071,12 +3050,11 @@ division:
 ;modos
     clrf decena4 ;Limpiar variables
     clrf unidad4
-    clrf resta4
     bcf STATUS, 0
-    movf T_modo, 0 ;Se mueve T_semaforo3 a resta3
-    movwf resta4
+    ;movf T_modo, 0 ;Se mueve T_semaforo3 a resta3
+    ;movwf resta4
     movlw 10 ;Mover valor 10 a W
-    subwf resta4, F ;Restamos W y resta3; el resultado va a resta3
+    subwf resta4, F ;Restamos W y resta4; el resultado va a resta3
     btfsc STATUS, 0 ;Si hay acarreo, incrementa decena3
     incf decena4 ;Incrementar decenas3
     btfsc STATUS, 0 ;Si hay acarreo, repito el proceso de division
@@ -3159,7 +3137,6 @@ sema1_amarillo:
     bcf PORTA, 1 ;apago el led amarillo
     call tope ;el semaforo 1 ahora tiene un nuevo tiempo de espera
     return
-
 ;--------------------------subrutinas para semaforo 2---------------------------
 
 ;------------------se enciende la luz verde del semaforo 2----------------------
@@ -3199,10 +3176,9 @@ sema2_amarillo:
     bcf PORTA, 4 ;apago el led amarillo
     call tope ;el semaforo 2 ahora tiene un nuevo tiempo de espera
     return
-
 ;--------------------------subrutinas para semaforo 3---------------------------
-;------------------se enciende la luz verde del semaforo 3----------------------
 
+;------------------se enciende la luz verde del semaforo 3----------------------
 sema2_rojo:
     bsf PORTB, 0 ;se enciende el led verde del semaforo 3
     bcf PORTA, 6 ;apagar luz roja de semaforo 3
@@ -3238,7 +3214,6 @@ sema3_amarillo:
     bcf PORTA, 7 ;apago el led amarillo
     call tope ;el semaforo 3 ahora tiene un nuevo tiempo de espera
     return
-
 
 
 tope:
@@ -3288,12 +3263,6 @@ delay_1:
     decfsz cont_small, F ;decrementar contador
     goto $-1 ;ejecutar linea anterior
     return
-
-
-;multi_modos:
-
-    ;return
-
 
 ;-------------------------seleccion de puertos----------------------------------
 
