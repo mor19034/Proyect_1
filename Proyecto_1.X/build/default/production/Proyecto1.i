@@ -5,12 +5,12 @@
 ;Dispositivo: PIC16F887
 ;Autor: Pablo Moreno
 
-;Programa:
+;Programa: semaforos para calle con 3 vias
 ;de resultado en displays, con hexadecimales y decimales
 ;Hardware: 4 displays de 7 segmentos, 3 push buttoms, 12 leds y 8 transistores
 ;
 ;Creado: 23/03/2021
-;Ultima modificacion 26/03/2021
+;Ultima modificacion 08/04/2021
 
 
 PROCESSOR 16F887
@@ -2746,14 +2746,14 @@ loop:
 
     call preparar_display
 
-    btfss mood_flags,0
-    goto estado0
-    goto estado1
+    btfss mood_flags,0 ;primera parte de la maquina de estados fiitos
+    goto estado0 ;Si al bandera esta abajo, pasamos al estado 0
+    goto estado1 ;si la bandera esta encendida, vamos al esto 1
 
 cambiar_modo:
-    btfsc PORTB,1
-    goto $-1
-    incf mood_flags
+    btfsc PORTB,1 ;se revisaa si se presiona el boton
+    goto $-1 ;loop antirebote
+    incf mood_flags ;se incrementa la bandera
     return
 
 
@@ -2786,7 +2786,7 @@ decr:
 
 
 estado0:
-    btfsc mood_flags,1
+    btfsc mood_flags,1 ;cuando se presione el boto de cambio de estado
     goto estado3
     goto estado2
     goto loop
@@ -2823,7 +2823,7 @@ estado5:
 
 
 
-modo0:
+modo0: ;display apagado, no se configura nada
     bcf PORTE,0
     bcf PORTE,1
     bcf PORTE,2
@@ -2832,7 +2832,7 @@ modo0:
     clrf display4+1
     goto loop
 
-modo1:
+modo1: ;configuracion de tiempo para semaforo 1
     movf N_semaforo1,W
     movwf var
     bsf PORTE,0
@@ -2861,7 +2861,7 @@ modo1:
     movwf display4+1
 
     goto loop
-modo2:
+modo2: ;configuracion de nuevo tiempo para semaforo 2
     movf N_semaforo2,W
     movwf var
     bcf PORTE,0
@@ -2891,7 +2891,7 @@ modo2:
 
     goto loop
 
-modo3:
+modo3: ;configuracion de tiempo para semaforo 3
     movf N_semaforo3,W
     movwf var
     bcf PORTE,0
@@ -2908,6 +2908,7 @@ modo3:
     movwf N_semaforo3
     movwf resta4
 
+    ;esta parte es el multiplexeado
     call division
 
     movwf unidad4,W
@@ -2920,7 +2921,7 @@ modo3:
 
     goto loop
 
-modo4:
+modo4: ;modo de aceptar o rechazar
     bsf PORTE,0
     bsf PORTE,1
     bsf PORTE,2
@@ -2941,7 +2942,8 @@ mood_main:
 aceptar:
     btfsc PORTB,2
     goto $-1
-    clrf mood_flags
+    clrf mood_flags ;se reinicia la maquina de estados
+
     movf N_semaforo1,W
     movwf T_semaforo1
 
